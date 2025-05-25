@@ -10,7 +10,7 @@
 
 在与企业 IT 团队和业务部门的深入沟通中，我们发现企业面临以下关键痛点：
 
-1. **信息孤岛问题**：尽管各业务系统已迁移至云端，但系统间的数据流通仍不够顺畅，员工需要在多个系统间切换才能获取完整信息。
+1. **信息孤岛问题**：尽管各业务系统已迁移至云端，但系统间的数据流通不顺畅，员工需要在多个系统间切换获取完整信息。
 
 2. **知识获取效率低**：企业积累了大量的业务知识、SOP 手册和最佳实践，但较为分散，员工查找信息耗时长。
 
@@ -27,8 +27,6 @@
 - **安全合规**：确保数据访问和处理符合企业安全策略和相关法规要求。
 
 ## 3. 企业 AI 助手的架构设计
-
-在充分理解企业的需求后，我们设计了一套基于 AWS 服务和开源工具的企业 AI 助手解决方案。整体架构如下：
 
 ### 3.1 架构概览
 
@@ -53,27 +51,24 @@
    - BGE-Reranker 作为 Rerenk 模型，对候选检索结果进行精细排序，提升检索的精度。
    - Amazon S3 存储原始企业文档，Amazon Lambda 检索 S3 上原始文档的变化事件以触发知识库的 Re-indexing
 
-5. **数据存储与集成层**
-   - RDS 和 Redshift 为企业的业务数据库和用作数据分析的数据湖服务
-   - **MCP Server（Model-Controller-Provider）**作为业务数据查询的中间件，在 AI 助手架构中扮演着关键角色，它使 AI 助手能够安全、高效地访问分散在各个业务系统中的数据，而无需了解底层系统的复杂性。通过统一的接口和权限控制，既保障了数据安全，又提高了 AI 助手的响应速度和准确性。
+5. **MCP Server（Model-Controller-Provider）**
+   - 作为业务数据查询的中间件，在 AI 助手架构中扮演着关键角色，它使 AI 助手能够安全、高效地访问分散在各个业务系统中的数据，而无需了解底层系统的复杂性。通过统一的接口和权限控制，既保障了数据安全，又提高了 AI 助手的响应速度和准确性。
 
 ## 4. RAG 的实现及优化
 
-检索增强生成（Retrieval-Augmented Generation，RAG）是企业 AI 助手的核心能力之一，它使系统能够基于企业内部知识库提供准确、相关的回答。我们采用了多项技术手段来优化 RAG 效果。
+检索增强生成（RAG）是企业 AI 助手的核心能力之一，它使系统能够基于企业内部知识库提供准确、相关的回答。我们采用了多项技术手段来优化 RAG 效果。
 
 ### 4.1 知识库构建
 
-客户的知识库资料分散在多个系统中，格式各异（Word、PDF、HTML、PPT等）。我们构建了统一的处理流水线：
+客户的知识库资料分散在多个系统中，格式各异（Word、PDF、PPT等）。我们构建了统一的处理流水线：
 
 1. **文档转换**：使用 AWS Lambda 将不同格式的文档转换为纯文本。
 
-2. **文档内容分段**：使用大模型将长文档根据章节分布，在章节末尾插入明显的分隔符，例如 -----。
+2. **文档内容分段**：使用大模型将长文档根据章节分段：重新提炼章节名称，章节名称包含完整的章节链；在章节末尾插入明显的分隔符，例如 **-----**。
 
-2. **文档分块**：将长文档切分为适合检索的小块（chunk），每块约 500-1000 个 token，并保留适当的上下文重叠。
+2. **文档分块**：根据上一步分段的结果，将每段切分为适合检索的小块（chunk），并保留适当的上下文重叠。
 
-3. **向量化**：使用 Embedding 模型将文本块转换为向量表示。
-
-4. **索引构建**：将向量和原始文本存储在 Amazon OpenSearch 中，建立高效的向量索引。
+3. **向量化**：使用 Embedding 模型将文本块转换为向量存储到 Amazon OpenSearch，并建立高效的向量索引。
 
 ### 4.2 检索策略优化
 
@@ -90,10 +85,9 @@
 #### 4.2.2 查询重写
 
 使用大语言模型对用户原始查询进行重写和扩展：
-
+- **提炼重点问题**：去除自然语言中无用的信息，提炼出简洁的问题。
 - **查询分解**：将复杂问题分解为多个子查询。
 - **查询扩展**：添加相关术语和同义词，增加召回率。
-- **查询精确化**：识别并强化查询中的关键概念。
 
 通过这些优化措施，神农集团的 AI 助手在知识问答方面达到了一定的准确率。
 
@@ -109,42 +103,14 @@ pip install consulate fastapi fastapi-mcp uvicorn requests pydantic
 ```
 
 ### Remote MCP Server 实现（业务系统集成层）
+**[mcp_server.py](mcp_server.py)**
 
 ```python
-# mcp_server.py
-import os
-import json
-import logging
-from typing import List, Optional
-from fastapi import FastAPI, HTTPException
-from fastapi_mcp import FastApiMCP
-from pydantic import BaseModel
-import requests
-from consulate import Consul
-
-# 配置日志
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("mcp-server")
-
-# 连接Consul服务注册中心（仅用于发现业务服务）
-consul_host = os.environ.get('CONSUL_HOST', 'consul-server')
-consul_port = int(os.environ.get('CONSUL_PORT', 8500))
-consul = Consul(host=consul_host, port=consul_port)
+# 连接 Consul 服务注册中心，获取药品库存及疫病数据的微服务地址
+...
 
 # 初始化FastAPI应用
 app = FastAPI(title="MCP Server", description="业务系统集成API")
-
-# 定义请求和响应模型
-class TreatmentPlanRequest(BaseModel):
-    symptoms: List[str]
-    age_days: int
-    farm_id: str
-
-class TreatmentPlanResponse(BaseModel):
-    success: bool
-    treatment_plan: Optional[str] = None
-    diagnosis: Optional[List[str]] = None
-    error: Optional[str] = None
 
 @app.post("/api/treatment-plan", response_model=TreatmentPlanResponse)
 async def generate_treatment_plan(request: TreatmentPlanRequest):
@@ -155,130 +121,39 @@ async def generate_treatment_plan(request: TreatmentPlanRequest):
     - **age_days**: 猪只日龄，单位为天
     - **farm_id**: 猪场ID，用于查询该猪场可用药品
     """
-    try:
-        # 从服务发现获取库存服务地址
-        inventory_services = consul.catalog.service('inventory-service')
-        if not inventory_services:
-            raise HTTPException(status_code=503, detail="库存服务不可用")
-        inventory_service = inventory_services[0]
-        inventory_url = f"http://{inventory_service['ServiceAddress']}:{inventory_service['ServicePort']}/api/inventory"
-        
-        # 从服务发现获取疫病数据服务地址
-        disease_services = consul.catalog.service('disease-data-service')
-        if not disease_services:
-            raise HTTPException(status_code=503, detail="疫病数据服务不可用")
-        disease_service = disease_services[0]
-        disease_url = f"http://{disease_service['ServiceAddress']}:{disease_service['ServicePort']}/api/diseases"
-        
-        logger.info(f"处理治疗方案请求: 症状={request.symptoms}, 日龄={request.age_days}, 猪场ID={request.farm_id}")
-        
-        # 调用库存服务获取可用药品
-        try:
-            inventory_response = requests.get(
-                inventory_url,
-                params={'farm_id': request.farm_id},
-                timeout=5
-            )
-            inventory_response.raise_for_status()
-            available_medicines = inventory_response.json()
-        except Exception as e:
-            logger.error(f"调用库存服务失败: {str(e)}")
-            raise HTTPException(status_code=502, detail=f"调用库存服务失败: {str(e)}")
-        
-        # 调用疫病数据服务获取相关疫病信息
-        try:
-            disease_response = requests.post(
-                disease_url,
-                json={'symptoms': request.symptoms, 'age_days': request.age_days},
-                timeout=5
-            )
-            disease_response.raise_for_status()
-            disease_data = disease_response.json()
-        except Exception as e:
-            logger.error(f"调用疫病数据服务失败: {str(e)}")
-            raise HTTPException(status_code=502, detail=f"调用疫病数据服务失败: {str(e)}")
-        
-        # 准备发送给DeepSeek模型的提示
-        prompt = f"""
-        基于以下信息生成猪禽治疗方案:
-        
-        症状: {', '.join(request.symptoms)}
-        日龄: {request.age_days}天
-        可能的疾病: {', '.join(disease_data.get('possible_diseases', []))}
-        疾病流行情况: {disease_data.get('epidemic_status', '无数据')}
-        
-        可用药品清单:
-        {json.dumps(available_medicines, indent=2, ensure_ascii=False)}
-        
-        请提供详细的治疗方案，包括:
-        1. 推荐用药及用量
-        2. 治疗周期
-        3. 注意事项
-        4. 预防措施
-        """
-        
-        # 调用DeepSeek模型生成治疗方案
-        deepseek_url = os.environ.get('DEEPSEEK_API_URL')
-        if not deepseek_url:
-            logger.error("未配置DEEPSEEK_API_URL环境变量")
-            raise HTTPException(status_code=500, detail="LLM服务配置错误")
-            
-        try:
-            deepseek_response = requests.post(
-                deepseek_url,
-                headers={'Content-Type': 'application/json'},
-                json={
-                    'prompt': prompt,
-                    'max_tokens': 1000,
-                    'temperature': 0.2
-                },
-                timeout=30
-            )
-            deepseek_response.raise_for_status()
-            treatment_plan = deepseek_response.json().get('response', '无法生成治疗方案')
-        except Exception as e:
-            logger.error(f"调用DeepSeek模型失败: {str(e)}")
-            raise HTTPException(status_code=502, detail=f"调用LLM服务失败: {str(e)}")
-        
-        # 记录治疗方案到业务系统
-        treatment_services = consul.catalog.service('treatment-service')
-        if not treatment_services:
-            logger.warning("治疗记录服务不可用，无法保存治疗方案")
-        else:
-            treatment_service = treatment_services[0]
-            treatment_url = f"http://{treatment_service['ServiceAddress']}:{treatment_service['ServicePort']}/api/treatments"
-            
-            treatment_record = {
-                'farm_id': request.farm_id,
-                'age_days': request.age_days,
-                'symptoms': request.symptoms,
-                'diagnosis': disease_data.get('possible_diseases', []),
-                'treatment_plan': treatment_plan,
-                'created_by': 'ai-assistant'
-            }
-            
-            try:
-                requests.post(treatment_url, json=treatment_record, timeout=5)
-                logger.info(f"治疗方案已记录到业务系统，猪场ID: {request.farm_id}")
-            except Exception as e:
-                logger.error(f"记录治疗方案失败: {str(e)}")
-        
-        return TreatmentPlanResponse(
-            success=True,
-            treatment_plan=treatment_plan,
-            diagnosis=disease_data.get('possible_diseases', [])
-        )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"生成治疗方案时发生错误: {str(e)}")
-        return TreatmentPlanResponse(
-            success=False,
-            error=str(e)
-        )
 
-
+    # 调用库存服务获取可用药品
+    inventory_response = requests.get(inventory_url, params={'farm_id': request.farm_id}, timeout=5)
+    inventory_response.raise_for_status()
+    available_medicines = inventory_response.json()
+    
+    # 调用疫病数据服务获取相关疫病信息
+    disease_response = requests.post(disease_url,params={'farm_id': request.farm_id},timeout=5)
+    disease_response.raise_for_status()
+    disease_data = disease_response.json()
+    
+    # 准备发送给DeepSeek模型的提示
+    prompt = f"""
+    基于以下信息生成猪禽治疗方案:
+    
+    症状: {', '.join(request.symptoms)}
+    日龄: {request.age_days}天
+    可能的疾病: {', '.join(disease_data.get('possible_diseases', []))}
+    疾病流行情况: {disease_data.get('epidemic_status', '无数据')}
+    
+    可用药品清单:
+    {json.dumps(available_medicines, indent=2, ensure_ascii=False)}
+    
+    请提供详细的治疗方案，包括:
+    1. 推荐用药及用量
+    2. 治疗周期
+    3. 注意事项
+    4. 预防措施
+    """
+    
+    # 调用DeepSeek模型生成治疗方案
+    ...
+        
 # 创建 MCP 服务器
 mcp = FastApiMCP(
     app,
@@ -298,7 +173,7 @@ if __name__ == '__main__':
 ```
 
 ### Dify 工具注册
-JSON Schema 文件示例：
+JSON Schema 文件示例：**[dify_regist_schema.json](dify_regist_schema.json)**
 ```json
 {
    "name": "generate_treatment_plan",
@@ -328,6 +203,7 @@ JSON Schema 文件示例：
 ```
 
 ### 启动脚本
+**[start_mcp_server.sh](start_mcp_server.sh)**
 
 ```bash
 #!/bin/bash
