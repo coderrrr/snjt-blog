@@ -112,6 +112,7 @@ pip install consulate fastapi fastapi-mcp uvicorn requests pydantic
 # 初始化FastAPI应用
 app = FastAPI(title="MCP Server", description="业务系统集成API")
 
+# 实现生成治疗方案的工具方法
 @app.post("/api/treatment-plan", response_model=TreatmentPlanResponse)
 async def generate_treatment_plan(request: TreatmentPlanRequest):
     """
@@ -151,7 +152,7 @@ async def generate_treatment_plan(request: TreatmentPlanRequest):
     4. 预防措施
     """
     
-    # 调用DeepSeek模型生成治疗方案
+    # 调用DeepSeek模型生成最终治疗方案的回复内容
     ...
         
 # 创建 MCP 服务器
