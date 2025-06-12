@@ -6,7 +6,9 @@ from fastapi import FastAPI, HTTPException
 from fastapi_mcp import FastApiMCP
 from pydantic import BaseModel
 import requests
+import uvicorn
 from consulate import Consul
+from openai_client import invoke
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -84,7 +86,7 @@ async def generate_treatment_plan(request: TreatmentPlanRequest):
             logger.error(f"调用疫病数据服务失败: {str(e)}")
             raise HTTPException(status_code=502, detail=f"调用疫病数据服务失败: {str(e)}")
         
-        # 准备发送给DeepSeek模型的提示
+        # 准备发送给大模型的提示
         prompt = f"""
         基于以下信息生成猪禽治疗方案:
         
@@ -103,27 +105,14 @@ async def generate_treatment_plan(request: TreatmentPlanRequest):
         4. 预防措施
         """
         
-        # 调用DeepSeek模型生成治疗方案
-        deepseek_url = os.environ.get('DEEPSEEK_API_URL')
-        if not deepseek_url:
-            logger.error("未配置DEEPSEEK_API_URL环境变量")
-            raise HTTPException(status_code=500, detail="LLM服务配置错误")
-            
-        try:
-            deepseek_response = requests.post(
-                deepseek_url,
-                headers={'Content-Type': 'application/json'},
-                json={
-                    'prompt': prompt,
-                    'max_tokens': 1000,
-                    'temperature': 0.2
-                },
-                timeout=30
-            )
-            deepseek_response.raise_for_status()
-            treatment_plan = deepseek_response.json().get('response', '无法生成治疗方案')
+        # 调用OpenAI模型生成治疗方案
+        try:            
+            response_data = invoke(prompt)
+            treatment_plan = response_data.get("choices", [{}])[0].get("message", {}).get("content", "无法生成治疗方案")
+        except HTTPException as e:
+            raise e
         except Exception as e:
-            logger.error(f"调用DeepSeek模型失败: {str(e)}")
+            logger.error(f"调用OpenAI模型失败: {str(e)}")
             raise HTTPException(status_code=502, detail=f"调用LLM服务失败: {str(e)}")
         
         # 记录治疗方案到业务系统
@@ -182,6 +171,5 @@ mcp.mount()
 
 # 启动服务
 if __name__ == '__main__':
-    import uvicorn
-    port = int(os.environ.get('SERVICE_PORT'))
+    port = int(os.environ.get('SERVICE_PORT', 8000))
     uvicorn.run(app, host="0.0.0.0", port=port)

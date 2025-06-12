@@ -1,11 +1,13 @@
 #!/bin/bash
-# start_mcp_server.sh - 启动MCP Server的脚本
 
-# 默认配置
-SERVICE_PORT=${SERVICE_PORT:-"5000"}
-CONSUL_HOST=${CONSUL_HOST:-"consul-server"}
-CONSUL_PORT=${CONSUL_PORT:-"8500"}
-DEEPSEEK_API_URL=${DEEPSEEK_API_URL:-"http://deepseek-api:8000/v1/completions"}
+# DeepSeek V3 Pro API 配置
+export DEEPSEEK_API_KEY="your_api_key_here"  # 请替换为实际的 API Key
+export DEEPSEEK_API_URL="https://api.deepseek.com"  # DeepSeek API 基础URL
 
-# 启动MCP Server
-python mcp_client.py
+# 其他服务配置
+export SERVICE_PORT=8000
+export CONSUL_HOST="consul-server"
+export CONSUL_PORT=8500
+
+# 启动 MCP 服务器
+python src/mcp_server.py
