@@ -7,19 +7,19 @@ from fastapi import HTTPException
 logger = logging.getLogger("openai-client")
 
 def invoke(prompt: str) -> str:    
-    # 获取OpenAI API配置
+    # 获取OpenAI 规范 API配置
     openai_api_key = os.environ.get('OPENAI_API_KEY')
     openai_api_url = os.environ.get('OPENAI_API_URL')
         
     try:
-        # 调用OpenAI模型
+        # 调用 LLM 模型
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {openai_api_key}"
         }
         
         payload = {
-            "model": "gpt-4",
+            "model": "Pro/deepseek-ai/DeepSeek-R1",
             "messages": [
                 {"role": "user", "content": prompt}
             ],
@@ -39,5 +39,5 @@ def invoke(prompt: str) -> str:
         response_data = response.json()        
         return response_data
     except Exception as e:
-        logger.error(f"调用OpenAI模型失败: {str(e)}")
-        raise HTTPException(status_code=502, detail=f"调用LLM服务失败: {str(e)}")
+        logger.error(f"调用 OpenAI 模型失败: {str(e)}")
+        raise HTTPException(status_code=502, detail=f"调用 LLM 服务失败: {str(e)}")
