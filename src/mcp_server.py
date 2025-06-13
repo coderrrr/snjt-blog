@@ -67,12 +67,10 @@ async def generate_treatment_plan(request: TreatmentPlanRequest):
         # 调用OpenAI模型生成治疗方案
         try:            
             response_data = invoke(prompt)
-            treatment_plan = response_data.get("choices", [{}])[0].get("message", {}).get("content", "无法生成治疗方案")
-        except HTTPException as e:
-            raise e
+            treatment_plan = response_data.get("choices", [{}])[0].get("message", {}).get("content", "无法生成治疗方案")        
         except Exception as e:
-            logger.error(f"调用OpenAI模型失败: {str(e)}")
-            raise HTTPException(status_code=502, detail=f"调用LLM服务失败: {str(e)}")
+            logger.error(f"调用 LLM 服务失败: {str(e)}")
+            raise HTTPException(status_code=502, detail=f"调用 LLM 服务失败: {str(e)}")
         
         # 记录治疗方案到业务系统
         treatment_record = {
@@ -90,10 +88,8 @@ async def generate_treatment_plan(request: TreatmentPlanRequest):
             success=True,
             treatment_plan=treatment_plan,
             diagnosis=disease_data.get('possible_diseases', [])
-        )
-        
-    except HTTPException:
-        raise
+        )            
+    
     except Exception as e:
         logger.error(f"生成治疗方案时发生错误: {str(e)}")
         return TreatmentPlanResponse(
