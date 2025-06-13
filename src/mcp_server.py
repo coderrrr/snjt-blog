@@ -19,6 +19,9 @@ consul_host = os.environ.get('CONSUL_HOST', 'consul-server')
 consul_port = int(os.environ.get('CONSUL_PORT', 8500))
 consul = Consul(host=consul_host, port=consul_port)
 
+print(os.environ.get('OPENAI_API_URL'))
+
+
 # 初始化FastAPI应用
 app = FastAPI(title="MCP Server", description="业务系统集成API")
 
@@ -34,7 +37,7 @@ class TreatmentPlanResponse(BaseModel):
     diagnosis: Optional[List[str]] = None
     error: Optional[str] = None
 
-@app.post("/api/treatment-plan", response_model=TreatmentPlanResponse)
+@app.post("/api/treatment-plan", response_model=TreatmentPlanResponse, operation_id="generate_treatment_plan")
 async def generate_treatment_plan(request: TreatmentPlanRequest):
     """
     根据猪只症状、日龄和猪场信息生成治疗方案
