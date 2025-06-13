@@ -31,7 +31,7 @@ def invoke(prompt: str) -> str:
             f"{openai_api_url}/v1/chat/completions",
             headers=headers,
             json=payload,
-            timeout=30
+            timeout=180
         )
         response.raise_for_status()
         

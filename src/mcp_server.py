@@ -19,9 +19,6 @@ consul_host = os.environ.get('CONSUL_HOST', 'consul-server')
 consul_port = int(os.environ.get('CONSUL_PORT', 8500))
 consul = Consul(host=consul_host, port=consul_port)
 
-print(os.environ.get('OPENAI_API_URL'))
-
-
 # 初始化FastAPI应用
 app = FastAPI(title="MCP Server", description="业务系统集成API")
 
