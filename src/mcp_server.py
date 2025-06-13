@@ -44,59 +44,47 @@ async def generate_treatment_plan(request: TreatmentPlanRequest):
     - **farm_id**: 猪场ID，用于查询该猪场可用药品
     """
     try:
-        # # 从服务发现获取库存服务地址
-        # inventory_services = consul.catalog.service('inventory-service')
-        # if not inventory_services:
-        #     raise HTTPException(status_code=503, detail="库存服务不可用")
-        # inventory_service = inventory_services[0]
-        # inventory_url = f"http://{inventory_service['ServiceAddress']}:{inventory_service['ServicePort']}/api/inventory"
+        # 从服务发现获取库存服务地址
+        inventory_services = consul.catalog.service('inventory-service')
+        if not inventory_services:
+            raise HTTPException(status_code=503, detail="库存服务不可用")
+        inventory_service = inventory_services[0]
+        inventory_url = f"http://{inventory_service['ServiceAddress']}:{inventory_service['ServicePort']}/api/inventory"
         
-        # # 从服务发现获取疫病数据服务地址
-        # disease_services = consul.catalog.service('disease-data-service')
-        # if not disease_services:
-        #     raise HTTPException(status_code=503, detail="疫病数据服务不可用")
-        # disease_service = disease_services[0]
-        # disease_url = f"http://{disease_service['ServiceAddress']}:{disease_service['ServicePort']}/api/diseases"
+        # 从服务发现获取疫病数据服务地址
+        disease_services = consul.catalog.service('disease-data-service')
+        if not disease_services:
+            raise HTTPException(status_code=503, detail="疫病数据服务不可用")
+        disease_service = disease_services[0]
+        disease_url = f"http://{disease_service['ServiceAddress']}:{disease_service['ServicePort']}/api/diseases"
         
-        # logger.info(f"处理治疗方案请求: 症状={request.symptoms}, 日龄={request.age_days}, 猪场ID={request.farm_id}")
+        logger.info(f"处理治疗方案请求: 症状={request.symptoms}, 日龄={request.age_days}, 猪场ID={request.farm_id}")
         
-        # # 调用库存服务获取可用药品
-        # try:
-        #     inventory_response = requests.get(
-        #         inventory_url,
-        #         params={'farm_id': request.farm_id},
-        #         timeout=5
-        #     )
-        #     inventory_response.raise_for_status()
-        #     available_medicines = inventory_response.json()
-        # except Exception as e:
-        #     logger.error(f"调用库存服务失败: {str(e)}")
-        #     raise HTTPException(status_code=502, detail=f"调用库存服务失败: {str(e)}")
+        # 调用库存服务获取可用药品
+        try:
+            inventory_response = requests.get(
+                inventory_url,
+                params={'farm_id': request.farm_id},
+                timeout=5
+            )
+            inventory_response.raise_for_status()
+            available_medicines = inventory_response.json()
+        except Exception as e:
+            logger.error(f"调用库存服务失败: {str(e)}")
+            raise HTTPException(status_code=502, detail=f"调用库存服务失败: {str(e)}")
         
-        # # 调用疫病数据服务获取相关疫病信息
-        # try:
-        #     disease_response = requests.post(
-        #         disease_url,
-        #         json={'symptoms': request.symptoms, 'age_days': request.age_days},
-        #         timeout=5
-        #     )
-        #     disease_response.raise_for_status()
-        #     disease_data = disease_response.json()
-        # except Exception as e:
-        #     logger.error(f"调用疫病数据服务失败: {str(e)}")
-        #     raise HTTPException(status_code=502, detail=f"调用疫病数据服务失败: {str(e)}")
-        
-        # 准备发送给大模型的提示
-
-        disease_data = {
-            'possible_diseases': ['疫苗A', '疫苗B'],
-            'epidemic_status': '流行中'
-        }
-
-        available_medicines = [
-            {'name': '药品A', 'dosage': '1片', 'quantity': 10},
-            {'name': '药品B', 'dosage': '2片', 'quantity': 5}
-        ]
+        # 调用疫病数据服务获取相关疫病信息
+        try:
+            disease_response = requests.post(
+                disease_url,
+                json={'symptoms': request.symptoms, 'age_days': request.age_days},
+                timeout=5
+            )
+            disease_response.raise_for_status()
+            disease_data = disease_response.json()
+        except Exception as e:
+            logger.error(f"调用疫病数据服务失败: {str(e)}")
+            raise HTTPException(status_code=502, detail=f"调用疫病数据服务失败: {str(e)}")
 
         prompt = f"""
         基于以下信息生成猪禽治疗方案:
@@ -126,28 +114,28 @@ async def generate_treatment_plan(request: TreatmentPlanRequest):
             logger.error(f"调用OpenAI模型失败: {str(e)}")
             raise HTTPException(status_code=502, detail=f"调用LLM服务失败: {str(e)}")
         
-        # # 记录治疗方案到业务系统
-        # treatment_services = consul.catalog.service('treatment-service')
-        # if not treatment_services:
-        #     logger.warning("治疗记录服务不可用，无法保存治疗方案")
-        # else:
-        #     treatment_service = treatment_services[0]
-        #     treatment_url = f"http://{treatment_service['ServiceAddress']}:{treatment_service['ServicePort']}/api/treatments"
+        # 记录治疗方案到业务系统
+        treatment_services = consul.catalog.service('treatment-service')
+        if not treatment_services:
+            logger.warning("治疗记录服务不可用，无法保存治疗方案")
+        else:
+            treatment_service = treatment_services[0]
+            treatment_url = f"http://{treatment_service['ServiceAddress']}:{treatment_service['ServicePort']}/api/treatments"
             
-        #     treatment_record = {
-        #         'farm_id': request.farm_id,
-        #         'age_days': request.age_days,
-        #         'symptoms': request.symptoms,
-        #         'diagnosis': disease_data.get('possible_diseases', []),
-        #         'treatment_plan': treatment_plan,
-        #         'created_by': 'ai-assistant'
-        #     }
+            treatment_record = {
+                'farm_id': request.farm_id,
+                'age_days': request.age_days,
+                'symptoms': request.symptoms,
+                'diagnosis': disease_data.get('possible_diseases', []),
+                'treatment_plan': treatment_plan,
+                'created_by': 'ai-assistant'
+            }
             
-        #     try:
-        #         requests.post(treatment_url, json=treatment_record, timeout=5)
-        #         logger.info(f"治疗方案已记录到业务系统，猪场ID: {request.farm_id}")
-        #     except Exception as e:
-        #         logger.error(f"记录治疗方案失败: {str(e)}")
+            try:
+                requests.post(treatment_url, json=treatment_record, timeout=5)
+                logger.info(f"治疗方案已记录到业务系统，猪场ID: {request.farm_id}")
+            except Exception as e:
+                logger.error(f"记录治疗方案失败: {str(e)}")
         
         return TreatmentPlanResponse(
             success=True,
