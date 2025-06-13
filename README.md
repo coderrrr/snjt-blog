@@ -43,7 +43,7 @@
 
 3. **AI 推理层**
    - DeepSeek-R1-14B 或同类小参数模型作为问题分类器以获得良好的速度
-   - DeepSeek-R1-70B 或同类大参数模型作为 AI 推理模型
+   - DeepSeek-V3 或同类大参数模型作为 AI 推理模型
 
 4. **知识管理层**
    - Amazon OpenSearch 作为向量数据库
@@ -106,54 +106,60 @@ pip install consulate fastapi fastapi-mcp uvicorn requests pydantic
 **[mcp_server.py](mcp_server.py)**
 
 ```python
-# 连接 Consul 服务注册中心，获取药品库存及疫病数据的微服务地址
+# 连接 Consul 服务注册中心，获取相关业务的微服务地址
 ...
 
 # 初始化FastAPI应用
 app = FastAPI(title="MCP Server", description="业务系统集成API")
 
 # 实现生成治疗方案的工具方法
-@app.post("/api/treatment-plan", response_model=TreatmentPlanResponse)
+@app.post("/api/treatment-plan", response_model=TreatmentPlanResponse, operation_id="generate_treatment_plan")
 async def generate_treatment_plan(request: TreatmentPlanRequest):
-    """
-    根据猪只症状、日龄和猪场信息生成治疗方案
-    
-    - **symptoms**: 症状列表，例如['发热', '咳嗽', '食欲不振']
-    - **age_days**: 猪只日龄，单位为天
-    - **farm_id**: 猪场ID，用于查询该猪场可用药品
-    """
+   """
+   根据猪只症状、日龄和猪场信息生成治疗方案
+   
+   - **symptoms**: 症状列表，例如['发热', '咳嗽', '食欲不振']
+   - **age_days**: 猪只日龄，单位为天
+   - **farm_id**: 猪场ID，用于查询该猪场可用药品
+   """
+   logger.info(f"处理治疗方案请求: 症状={request.symptoms}, 日龄={request.age_days}, 猪场ID={request.farm_id}")
+   
+   # 调用库存服务获取可用药品
+   available_medicines = consul_client.call_inventory_service(request.farm_id)
+   
+   # 调用疫病数据服务获取相关疫病信息
+   disease_data = consul_client.call_disease_service(request.symptoms, request.age_days)
 
-    # 调用库存服务获取可用药品
-    inventory_response = requests.get(inventory_url, params={'farm_id': request.farm_id}, timeout=5)
-    inventory_response.raise_for_status()
-    available_medicines = inventory_response.json()
-    
-    # 调用疫病数据服务获取相关疫病信息
-    disease_response = requests.post(disease_url,params={'farm_id': request.farm_id},timeout=5)
-    disease_response.raise_for_status()
-    disease_data = disease_response.json()
-    
-    # 准备发送给DeepSeek模型的提示
-    prompt = f"""
-    基于以下信息生成猪禽治疗方案:
-    
-    症状: {', '.join(request.symptoms)}
-    日龄: {request.age_days}天
-    可能的疾病: {', '.join(disease_data.get('possible_diseases', []))}
-    疾病流行情况: {disease_data.get('epidemic_status', '无数据')}
-    
-    可用药品清单:
-    {json.dumps(available_medicines, indent=2, ensure_ascii=False)}
-    
-    请提供详细的治疗方案，包括:
-    1. 推荐用药及用量
-    2. 治疗周期
-    3. 注意事项
-    4. 预防措施
-    """
-    
-    # 调用DeepSeek模型生成最终治疗方案的回复内容
-    ...
+   prompt = f"""
+   基于以下信息生成猪禽治疗方案:
+   
+   症状: {', '.join(request.symptoms)}
+   日龄: {request.age_days}天
+   可能的疾病: {', '.join(disease_data.get('possible_diseases', []))}
+   疾病流行情况: {disease_data.get('epidemic_status', '无数据')}
+   
+   可用药品清单:
+   {json.dumps(available_medicines, indent=2, ensure_ascii=False)}
+   
+   请提供详细的治疗方案，包括:
+   1. 推荐用药及用量
+   2. 治疗周期
+   3. 注意事项
+   4. 预防措施
+   """
+   
+   # 调用 LLM 生成治疗方案
+   response_data = invoke(prompt)
+   treatment_plan = response_data.get("choices", [{}])[0].get("message", {}).get("content", "无法生成治疗方案")
+   
+   # 记录治疗方案到业务系统
+   ...
+   
+   return TreatmentPlanResponse(
+      success=True,
+      treatment_plan=treatment_plan,
+      diagnosis=disease_data.get('possible_diseases', [])
+   )
         
 # 创建 MCP 服务器
 mcp = FastApiMCP(
@@ -173,36 +179,6 @@ if __name__ == '__main__':
     uvicorn.run(app, host="0.0.0.0", port=port)
 ```
 
-### Dify 工具注册
-JSON Schema 文件示例：**[dify_regist_schema.json](dify_regist_schema.json)**
-```json
-{
-   "name": "generate_treatment_plan",
-   "description": "根据猪只症状、日龄和猪场信息生成治疗方案",
-   "parameters": {
-      "type": "object",
-      "properties": {
-            "symptoms": {
-               "type": "array",
-               "items": {"type": "string"},
-               "description": "症状列表，例如['发热', '咳嗽', '食欲不振']"
-            },
-            "age_days": {
-               "type": "integer",
-               "description": "猪只日龄，单位为天"
-            },
-            "farm_id": {
-               "type": "string",
-               "description": "猪场ID，用于查询该猪场可用药品"
-            }
-      },
-      "required": ["symptoms", "age_days", "farm_id"]
-   },
-   "api_endpoint": f"{mcp_server_url}/api/treatment-plan",
-   "method": "POST"
-}
-```
-
 ### 启动脚本
 **[start_mcp_server.sh](start_mcp_server.sh)**
 
@@ -210,15 +186,20 @@ JSON Schema 文件示例：**[dify_regist_schema.json](dify_regist_schema.json)*
 #!/bin/bash
 # start_mcp_server.sh - 启动MCP Server的脚本
 
-# 默认配置
-SERVICE_PORT=${SERVICE_PORT:-"5000"}
-CONSUL_HOST=${CONSUL_HOST:-"consul-server"}
-CONSUL_PORT=${CONSUL_PORT:-"8500"}
-DEEPSEEK_API_URL=${DEEPSEEK_API_URL:-"http://deepseek-api:8000/v1/completions"}
+# 设置环境变量并导出，使子进程可以访问
+export SERVICE_PORT=${SERVICE_PORT:-"8000"}
+export CONSUL_HOST=${CONSUL_HOST:-"consul-server"}
+export CONSUL_PORT=${CONSUL_PORT:-"8500"}
+export OPENAI_API_URL=${OPENAI_API_URL:-"your-api-url-here"}
+export OPENAI_API_KEY=${OPENAI_API_KEY:-"your-api-key-here"}
 
 # 启动MCP Server
-python mcp_client.py
+python mcp_server.py
 ```
+
+### Dify 工具注册
+待完成
+
 
 ## 6. 总结
 
