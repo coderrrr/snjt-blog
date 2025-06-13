@@ -103,7 +103,7 @@ pip install consulate fastapi fastapi-mcp uvicorn requests pydantic
 ```
 
 ### Remote MCP Server 实现（业务系统集成层）
-**[mcp_server.py](mcp_server.py)**
+**[mcp_server.py](src/mcp_server.py)**
 
 ```python
 # 连接 Consul 服务注册中心，获取相关业务的微服务地址
@@ -180,7 +180,7 @@ if __name__ == '__main__':
 ```
 
 ### 启动脚本
-**[start_mcp_server.sh](start_mcp_server.sh)**
+**[start_mcp_server.sh](src/start_mcp_server.sh)**
 
 ```bash
 #!/bin/bash
