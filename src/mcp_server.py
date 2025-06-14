@@ -9,7 +9,6 @@ import uvicorn
 from openai_client import invoke
 from consul_client import consul_client
 
-# 配置日志
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("mcp-server")
 
@@ -117,3 +116,4 @@ mcp.mount()
 if __name__ == '__main__':
     port = int(os.environ.get('SERVICE_PORT', 8000))
     uvicorn.run(app, host="0.0.0.0", port=port)
+    

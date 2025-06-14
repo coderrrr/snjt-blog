@@ -5,7 +5,7 @@ from typing import Dict, Any, List, Optional
 from fastapi import HTTPException
 from consulate import Consul
 
-# 配置日志
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("consul-client")
 
 class ConsulClient:
@@ -20,7 +20,7 @@ class ConsulClient:
         self.host = host or os.environ.get('CONSUL_HOST', 'consul-server')
         self.port = port or int(os.environ.get('CONSUL_PORT', 8500))
         self.consul = Consul(host=self.host, port=self.port)
-        logger.info(f"已连接到Consul服务: {self.host}:{self.port}")
+        logger.info(f"已初始化 Consul 服务: {self.host}:{self.port}")
     
     def get_service_url(self, service_name: str) -> str:
         """
